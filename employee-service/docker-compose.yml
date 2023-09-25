@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+
+  mysql-service-employee:
+    container_name: mysql-service-employee
+    image: ameinberg/employee_db_image
+    restart: always
+    environment:
+      - MYSQL_ROOT_USERNAME=root
+      - MYSQL_ROOT_PASSWORD=asm1523
+      - MYSQL_DATABASE=employee
+
+    ports:
+      - 3309:3306
+    networks:
+      - meinberg-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-u", "root", "-pasm1523"]
+      interval: 6s
+      timeout: 5s
+      retries: 3
+
+  employee:
+    image: ameinberg/employee_service
+    ports:
+      - "8090:8090"
+    networks:
+      - meinberg-network
+    depends_on:
+      mysql-service-employee:
+        condition: service_healthy
+ 
+    environment:
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-service-employee:3306/employee
+      - SPRING_DATASOURCE_PASSWORD=asm1523
+
+networks:
+  meinberg-network:
+    driver: bridge

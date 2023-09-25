@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+
+  mysql-service:
+    container_name: mysql-service
+    image: ameinberg/login_db_image
+    restart: always
+    environment:
+      - MYSQL_ROOT_USERNAME=root
+      - MYSQL_ROOT_PASSWORD=asm1523
+      - MYSQL_DATABASE=login
+
+    ports:
+      - 3307:3306
+    networks:
+      - meinberg-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-u", "root", "-pasm1523"]
+      interval: 6s
+      timeout: 5s
+      retries: 3
+
+  login:
+    image: ameinberg/login-service
+    ports:
+      - "8080:8080"
+    networks:
+      - meinberg-network
+    depends_on:
+      mysql-service:
+        condition: service_healthy
+ 
+    environment:
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-service:3306/login
+      - SPRING_DATASOURCE_PASSWORD=asm1523
+
+networks:
+  meinberg-network:
+    driver: bridge

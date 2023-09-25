@@ -1,0 +1,171 @@
+version: '1.0'
+services:
+
+  eureka-server:
+    container_name: eureka-server
+    image: ameinberg/discovery
+    ports:
+      - "8070:8070"
+    networks:
+      - meinberg-network
+
+  mysql-service:
+    container_name: mysql-service
+    image: ameinberg/login_db_image
+    restart: always
+    environment:
+      - MYSQL_ROOT_USERNAME=root
+      - MYSQL_ROOT_PASSWORD=asm1523
+      - MYSQL_DATABASE=login
+
+    ports:
+      - 3307:3306
+    networks:
+      - meinberg-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-u", "root", "-pasm1523"]
+      interval: 8s
+      timeout: 5s
+      retries: 5
+  
+  mysql-service-employee:
+    container_name: mysql-service-employee
+    image: ameinberg/employee_db_image
+    restart: always
+    environment:
+      - MYSQL_ROOT_USERNAME=root
+      - MYSQL_ROOT_PASSWORD=asm1523
+      - MYSQL_DATABASE=employee
+
+    ports:
+      - 3309:3306
+    networks:
+      - meinberg-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-u", "root", "-pasm1523"]
+      interval: 8s
+      timeout: 5s
+      retries: 5
+
+  employee:
+    image: ameinberg/employee_service
+    ports:
+      - "8090:8090"
+    networks:
+      - meinberg-network
+    depends_on:
+      eureka-server:
+        condition: service_started
+      mysql-service-employee:
+        condition: service_healthy
+   
+ 
+    environment:
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-service-employee:3306/employee
+      - SPRING_DATASOURCE_PASSWORD=asm1523
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8070/eureka
+  
+  login:
+    image: ameinberg/login-service
+    ports:
+      - "8080:8080"
+    networks:
+      - meinberg-network
+    depends_on:
+      eureka-server:
+        condition: service_started
+      mysql-service:
+        condition: service_healthy
+      
+ 
+    environment:
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-service:3306/login
+      - SPRING_DATASOURCE_PASSWORD=asm1523
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE=http://eureka-server:8070/eureka
+
+  
+  zookeeper:
+    image: wurstmeister/zookeeper
+    ports:
+    - "2181:2181"
+    networks:
+      - meinberg-network
+  kafka:
+    image: wurstmeister/kafka
+    ports:
+    - "9092:9092"
+    networks:
+      - meinberg-network
+    environment:
+      KAFKA_ADVERTISED_HOST_NAME: kafka
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    networks:
+      - meinberg-network
+    volumes:
+      - mongodb-data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=FSCC
+    command: mongod --bind_ip_all
+
+  
+
+  producer:
+    image: ameinberg/producer
+    depends_on:
+      kafka:
+        condition: service_started
+      eureka-server:
+        condition: service_started
+    ports:
+      - 8777:8777
+    networks:
+      - meinberg-network
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8070/eureka
+ 
+  consumer:
+    image: ameinberg/consumer
+    depends_on:
+      kafka:
+        condition: service_started
+      eureka-server:
+        condition: service_started
+    ports:
+      - 8778:8778
+    networks:
+      - meinberg-network
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://eureka-server:8070/eureka
+
+  api-gateway:
+    container_name: gateway
+    image: ameinberg/api-gateway
+    ports:
+      - 9999:9999
+    networks:
+      - meinberg-network
+    depends_on:
+      - eureka-server
+      - employee
+      - login
+      - producer
+    environment:
+      - EUREKA_CLIENT_SERVICEURL_DEFAULTZONE= http://eureka-server:8070/eureka
+
+
+networks:
+  meinberg-network:
+    driver: bridge
+
+volumes:
+  mongodb-data:

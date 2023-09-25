@@ -1,0 +1,48 @@
+server:
+  port: 9999
+
+eureka.instance.preferIpAddress:  true 
+eureka.client.registerWithEureka:  true
+eureka.client.fetchRegistry:  true
+eureka.client.serviceUrl.defaultZone:  http://localhost:8070/eureka/
+
+## Configuring info endpoint
+spring.application.name: api-gateway
+info.app.name: Spring Cloud Gateway
+info.app.description: Gateway
+info.app.version: 1.0.0
+management.info.env.enabled: true
+
+management.endpoint.gateway.enabled: true 
+management.endpoints.web.exposure.include: "*"
+
+spring:
+  cloud:
+    gateway:
+      discovery:
+        locator:
+          enabled: true
+      routes:
+        - id: employee
+          uri: lb://EMPLOYEE-SERVICE/
+          predicates:
+            - Path=/employee/**
+          filters:
+            - RewritePath=employee/(?<segment>.*),${segment}
+            - AuthenticationFilter
+        - id: login
+          uri: lb://LOGIN-SERVICE/
+          predicates:
+            - Path=/login/**
+          filters:
+            - RewritePath=login/(?<segment>.*),${segment}
+         #   - AuthenticationFilter
+        - id: producer
+          uri: lb://REGISTER-PRODUCER/
+          predicates:
+            - Path=/producer/**
+          filters:
+            - RewritePath=producer/(?<segment>.*),${segment}
+            - AuthenticationFilter
+
+        
